@@ -9,6 +9,9 @@ on:
   schedule:
     - cron: '15 18 * * *'
 
+permissions:
+  contents: write
+
 jobs:
   update-readme:
     name: Update this repo's README
