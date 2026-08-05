@@ -1,6 +1,6 @@
 ## 刘航宇
 
-[![wakatime](https://wakatime.com/badge/user/PLACEHOLDER_WAKATIME_USER_ID.svg)](https://wakatime.com/@PLACEHOLDER_WAKATIME_USER_ID)
+[![wakatime](https://wakatime.com/badge/user/9747123e-0660-43be-a937-7b33dfdc85b4.svg)](https://wakatime.com/@9747123e-0660-43be-a937-7b33dfdc85b4)
 
 <!-- Copy-paste in your Readme.md file -->
 
