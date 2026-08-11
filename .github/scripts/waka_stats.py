@@ -11,7 +11,7 @@ waka_stats.py — 生成 README 中 wakatime 详细统计区块（<!--START_SECT
 - 未设置时：降级调用公开 /users/{PUBLIC_USER_ID} 端点（用于本地预览，无 AI 字段）
 
 展示维度（语言统计由 waka-readme 负责，脚本不重复）：
-    总览时长/日均 → 最佳编码日 → AI 编码详情（代码行/会话/模型）→ 编辑器 → 操作系统 → 活动类别 → 项目 Top5
+    总览时长/日均 → 最佳编码日 → AI 编码详情（代码行/会话/模型）→ 编辑器 → 操作系统 → 活动类别
 
 退出码：0 成功；1 失败（API 错误 / JSON 异常 / README 缺失）。失败时不改动 README。
 """
@@ -171,10 +171,10 @@ def render_ai(data):
     if has_lines:
         pct = ai_add / (ai_add + hu_add) * 100
         lines.append(
-            f"{pad('AI 生成', 10)}{fmt_num(ai_add):>8} 行  {bar(pct / 100)}  {pct:>5.1f}%"
+            f"{pad('AI', 8)}{fmt_num(ai_add):>8} 行  {bar(pct / 100)}  {pct:>5.1f}%"
         )
         lines.append(
-            f"{pad('人类编写', 10)}{fmt_num(hu_add):>8} 行  "
+            f"{pad('Human', 8)}{fmt_num(hu_add):>8} 行  "
             f"{bar(hu_add / (ai_add + hu_add))}  {100 - pct:>5.1f}%"
         )
     if sessions or events:
@@ -223,7 +223,6 @@ def build_block(data):
         render_section("🖥 编辑器分布", data.get("editors"), 6),
         render_section("💻 操作系统", data.get("operating_systems"), 4),
         render_section("⚡ 活动类别", data.get("categories"), 6),
-        render_section("📁 项目 Top 5", data.get("projects"), 5, name_width=22),
     ]
     body = "\n\n".join(p for p in sections if p)
     if body:
