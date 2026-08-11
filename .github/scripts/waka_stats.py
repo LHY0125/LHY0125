@@ -120,6 +120,11 @@ def pad(s, width):
     return s + " " * max(0, width - disp_width(s))
 
 
+def pad_left(s, width):
+    """按显示宽度在左侧补空格（右对齐）到 width 列。"""
+    return " " * max(0, width - disp_width(s)) + s
+
+
 def bar(fraction, width=BAR_WIDTH):
     """进度条：fraction 取 0~1，█ 填充 / ░ 空白。"""
     fraction = max(0.0, min(1.0, fraction))
@@ -127,15 +132,16 @@ def bar(fraction, width=BAR_WIDTH):
     return BAR_FULL * filled + BAR_EMPTY * (width - filled)
 
 
-def render_section(title, items, top_n, name_width=14):
-    """通用小节：名称 + 时长 + 进度条 + 百分比。基准 = 最大项。"""
+def render_section(title, items, top_n):
+    """通用小节：名称 + 时长 + 进度条 + 百分比。基准 = 最大项。
+    条对齐列 = 14(label 右对齐) + 12(value 右对齐) + 2 空格。"""
     if not items:
         return ""
     items = sorted(items, key=lambda x: x.get("total_seconds") or 0, reverse=True)[:top_n]
     peak = max((it.get("total_seconds") or 0) for it in items) or 1
     body = "\n".join(
-        f"{it.get('name', '?').strip()[:name_width]:<{name_width}} "
-        f"{fmt_hms(it.get('total_seconds') or 0):>8}  "
+        f"{pad_left(it.get('name', '?').strip()[:16], 14)}"
+        f"{pad_left(fmt_hms(it.get('total_seconds') or 0), 12)}  "
         f"{bar((it.get('total_seconds') or 0) / peak)}  "
         f"{(it.get('percent') or 0):>5.1f}%"
         for it in items
@@ -153,8 +159,8 @@ def render_best_day(data):
         label = f"{m}/{d}（{WEEKDAY_CN[date(y, m, d).weekday()]}）"
     except (ValueError, IndexError):
         label = best["date"]
-    text = fmt_cn(best.get("total_seconds") or 0)
-    body = f"{pad(label, 12)}{BAR_FULL * BAR_WIDTH}  {text}"
+    value = fmt_cn(best.get("total_seconds") or 0)
+    body = f"{pad_left(label, 14)}{pad_left(value, 12)}  {BAR_FULL * BAR_WIDTH}"
     return f"#### 🏆 最佳编码日\n\n```txt\n{body}\n```"
 
 
@@ -171,10 +177,11 @@ def render_ai(data):
     if has_lines:
         pct = ai_add / (ai_add + hu_add) * 100
         lines.append(
-            f"{pad('AI', 8)}{fmt_num(ai_add):>8} 行  {bar(pct / 100)}  {pct:>5.1f}%"
+            f"{pad_left('AI', 14)}{pad_left(f'{fmt_num(ai_add)} 行', 12)}  "
+            f"{bar(pct / 100)}  {pct:>5.1f}%"
         )
         lines.append(
-            f"{pad('Human', 8)}{fmt_num(hu_add):>8} 行  "
+            f"{pad_left('Human', 14)}{pad_left(f'{fmt_num(hu_add)} 行', 12)}  "
             f"{bar(hu_add / (ai_add + hu_add))}  {100 - pct:>5.1f}%"
         )
     if sessions or events:
@@ -187,17 +194,19 @@ def render_ai(data):
             lines.append("")
             lines.append("  ·  ".join(meta))
     if lines:
-        parts.append("#### 🤖 AI 编码详情\n\n```txt\n" + "\n".join(lines) + "\n```")
+        parts.append("#### ✨ AI 编码详情\n\n```txt\n" + "\n".join(lines) + "\n```")
 
     # 主要 AI 模型（按生成行数）
     mb = data.get("ai_model_line_changes") or {}
     models = sorted(mb.items(), key=lambda kv: kv[1], reverse=True)[:5]
     if models and max(v for _, v in models) > 0:
         peak = max(v for _, v in models)
+        total = sum(v for _, v in models) or 1
         body = "\n".join(
-            f"{MODEL_NAMES.get(name, name)[:12]:<14} {fmt_num(lines):>8} 行  "
-            f"{bar(lines / peak)}  {lines / (sum(v for _, v in models) or 1) * 100:>5.1f}%"
-            for name, lines in models
+            f"{pad_left(MODEL_NAMES.get(name, name)[:12], 14)}"
+            f"{pad_left(f'{fmt_num(ln)} 行', 12)}  "
+            f"{bar(ln / peak)}  {ln / total * 100:>5.1f}%"
+            for name, ln in models
         )
         parts.append("#### 🧠 主要 AI 模型\n\n```txt\n" + body + "\n```")
     return "\n\n".join(parts)
