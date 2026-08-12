@@ -150,7 +150,7 @@ def render_section(title: str, items: Any, top_n: int) -> str:
         return ""
     items = sorted(items, key=lambda x: x.get("total_seconds") or 0, reverse=True)[:top_n]
     body = "\n".join(
-        f"{pad_left(it.get('name', '?').strip()[:16], 14)}"
+        f"{pad(it.get('name', '?').strip()[:16], 14)}"
         f"{pad_left(fmt_hms(it.get('total_seconds') or 0), 12)}  "
         f"{bar((it.get('percent') or 0) / 100)}  "
         f"{(it.get('percent') or 0):>5.1f}%"
@@ -169,8 +169,8 @@ def render_best_day(data: dict[str, Any]) -> str:
         label = f"{m}/{d}（{WEEKDAY_CN[date(y, m, d).weekday()]}）"
     except (ValueError, IndexError):
         label = best["date"]
-    value = fmt_cn(best.get("total_seconds") or 0)
-    body = f"{pad_left(label, 14)}{pad_left(value, 12)}  {BAR_FULL * BAR_WIDTH}"
+    value = fmt_hms(best.get("total_seconds") or 0)
+    body = f"{pad(label, 14)}{pad_left(value, 12)}  {BAR_FULL * BAR_WIDTH}"
     return f"#### 🏆 最佳编码日\n\n```txt\n{body}\n```"
 
 
@@ -187,11 +187,11 @@ def render_ai(data: dict[str, Any]) -> str:
     if has_lines:
         pct = ai_add / (ai_add + hu_add) * 100
         lines.append(
-            f"{pad_left('AI', 14)}{pad_left(f'{fmt_num(ai_add)} 行', 12)}  "
+            f"{pad('AI', 14)}{pad_left(f'{fmt_num(ai_add)} 行', 12)}  "
             f"{bar(pct / 100)}  {pct:>5.1f}%"
         )
         lines.append(
-            f"{pad_left('Human', 14)}{pad_left(f'{fmt_num(hu_add)} 行', 12)}  "
+            f"{pad('Human', 14)}{pad_left(f'{fmt_num(hu_add)} 行', 12)}  "
             f"{bar(hu_add / (ai_add + hu_add))}  {100 - pct:>5.1f}%"
         )
     if sessions or events:
@@ -212,7 +212,7 @@ def render_ai(data: dict[str, Any]) -> str:
     if models and max(v for _, v in models) > 0:
         total = sum(v for _, v in models) or 1
         body = "\n".join(
-            f"{pad_left(MODEL_NAMES.get(name, name)[:12], 14)}"
+            f"{pad(MODEL_NAMES.get(name, name)[:12], 14)}"
             f"{pad_left(f'{fmt_num(ln)} 行', 12)}  "
             f"{bar(ln / total)}  {ln / total * 100:>5.1f}%"
             for name, ln in models
