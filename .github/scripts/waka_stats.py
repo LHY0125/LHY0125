@@ -160,17 +160,19 @@ def render_section(title: str, items: Any, top_n: int) -> str:
 
 
 def render_best_day(data: dict[str, Any]) -> str:
-    """最佳编码日。"""
+    """最佳编码日。条左侧用 ASCII（日期/时长）保证对齐，中文星期放条右侧。"""
     best = data.get("best_day")
     if not best or not best.get("date"):
         return ""
     try:
         y, m, d = (int(p) for p in best["date"].split("-")[:3])
-        label = f"{m}/{d}（{WEEKDAY_CN[date(y, m, d).weekday()]}）"
+        label = f"{m}/{d}"
+        weekday = f"（{WEEKDAY_CN[date(y, m, d).weekday()]}）"
     except (ValueError, IndexError):
         label = best["date"]
+        weekday = ""
     value = fmt_hms(best.get("total_seconds") or 0)
-    body = f"{pad(label, 14)}{pad_left(value, 12)}  {BAR_FULL * BAR_WIDTH}"
+    body = f"{pad(label, 14)}{pad_left(value, 12)}  {BAR_FULL * BAR_WIDTH}  {weekday}"
     return f"#### 🏆 最佳编码日\n\n```txt\n{body}\n```"
 
 
@@ -187,12 +189,12 @@ def render_ai(data: dict[str, Any]) -> str:
     if has_lines:
         pct = ai_add / (ai_add + hu_add) * 100
         lines.append(
-            f"{pad('AI', 14)}{pad_left(f'{fmt_num(ai_add)} 行', 12)}  "
-            f"{bar(pct / 100)}  {pct:>5.1f}%"
+            f"{pad('AI', 14)}{pad_left(f'{fmt_num(ai_add)}', 12)}  "
+            f"{bar(pct / 100)} 行  {pct:>5.1f}%"
         )
         lines.append(
-            f"{pad('Human', 14)}{pad_left(f'{fmt_num(hu_add)} 行', 12)}  "
-            f"{bar(hu_add / (ai_add + hu_add))}  {100 - pct:>5.1f}%"
+            f"{pad('Human', 14)}{pad_left(f'{fmt_num(hu_add)}', 12)}  "
+            f"{bar(hu_add / (ai_add + hu_add))} 行  {100 - pct:>5.1f}%"
         )
     if sessions or events:
         meta = []
@@ -213,8 +215,8 @@ def render_ai(data: dict[str, Any]) -> str:
         total = sum(v for _, v in models) or 1
         body = "\n".join(
             f"{pad(MODEL_NAMES.get(name, name)[:12], 14)}"
-            f"{pad_left(f'{fmt_num(ln)} 行', 12)}  "
-            f"{bar(ln / total)}  {ln / total * 100:>5.1f}%"
+            f"{pad_left(f'{fmt_num(ln)}', 12)}  "
+            f"{bar(ln / total)} 行  {ln / total * 100:>5.1f}%"
             for name, ln in models
         )
         parts.append("#### 🧠 主要 AI 模型\n\n```txt\n" + body + "\n```")
