@@ -3,3 +3,7 @@
 .playwright-mcp/
 
 __pycache__/
+
+# 本地 agent 指引，不推送到公开仓库
+CLAUDE.md
+AGENTS.md
