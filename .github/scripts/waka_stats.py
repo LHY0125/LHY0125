@@ -8,7 +8,8 @@ waka_stats.py — 生成 README 中 wakatime 详细统计区块（<!--START_SECT
 
 数据源：
 - 设置环境变量 WAKATIME_API_KEY 时：调用 /users/current 端点（返回完整数据，含 AI 编码统计）
-- 未设置时：降级调用公开 /users/{PUBLIC_USER_ID} 端点（用于本地预览，无 AI 字段）
+- 未设置但设了 WAKA_ALLOW_PUBLIC=1 时：降级调用公开 /users/{PUBLIC_USER_ID} 端点（本地预览，无 AI 字段）
+- 未设置且未显式允许时：报错退出（CI 中禁止静默降级，避免提交缺失 AI 区块的 README）
 
 展示维度（语言统计由 waka-readme 负责，脚本不重复）：
     总览时长/日均 → 最佳编码日 → AI 编码详情（代码行/会话/模型）→ 编辑器 → 操作系统 → 活动类别
@@ -23,50 +24,60 @@ import re
 import sys
 import urllib.request
 from datetime import date
+from types import MappingProxyType
+from typing import Any
 
 # 公开 user id（用于无 API key 时的降级预览，对应 README badge 里的 ID）
-PUBLIC_USER_ID = "9747123e-0660-43be-a937-7b33dfdc85b4"
-SECTION = "devstats"
-TIME_RANGE = "last_7_days"
-API_BASE = "https://wakatime.com/api/v1"
+PUBLIC_USER_ID: str = "9747123e-0660-43be-a937-7b33dfdc85b4"
+SECTION: str = "devstats"
+TIME_RANGE: str = "last_7_days"
+API_BASE: str = "https://wakatime.com/api/v1"
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
-README_PATH = os.path.join(REPO_ROOT, "README.md")
+SCRIPT_DIR: str = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT: str = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
+README_PATH: str = os.path.join(REPO_ROOT, "README.md")
 
-BAR_FULL = "█"
-BAR_EMPTY = "░"
-BAR_WIDTH = 20
+BAR_FULL: str = "█"
+BAR_EMPTY: str = "░"
+BAR_WIDTH: int = 20
 
-# AI 模型名 → 更可读的展示名
-MODEL_NAMES = {
+# AI 模型名 → 更可读的展示名（只读映射）
+MODEL_NAMES = MappingProxyType({
     "Deepseek": "DeepSeek",
     "Claude-Code": "Claude Code",
     "Opencode-Cli": "OpenCode CLI",
     "Vscode-Wakatime": "VS Code",
-}
+})
 
-WEEKDAY_CN = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+WEEKDAY_CN: tuple[str, ...] = ("周一", "周二", "周三", "周四", "周五", "周六", "周日")
 
 
-def log(msg):
-    """进度输出（保证 utf-8，避免 Windows 控制台乱码）。"""
+def log(msg: str) -> None:
+    """进度输出（保证 utf-8，避免 Windows 控制台乱码；失败时兜底到 stderr）。"""
     try:
         print(msg, flush=True)
     except Exception:
-        pass
+        try:
+            sys.stderr.write(msg + "\n")
+            sys.stderr.flush()
+        except Exception:
+            pass
 
 
-def fetch_stats():
-    """拉取统计数据。有 key 用 current 端点，否则降级公开端点。"""
+def fetch_stats() -> dict[str, Any]:
+    """拉取统计数据。有 key 用 current 端点；无 key 仅当显式允许时降级公开端点。"""
     key = os.environ.get("WAKATIME_API_KEY")
     if key:
         url = f"{API_BASE}/users/current/stats/{TIME_RANGE}"
         token = base64.b64encode(key.encode("utf-8")).decode("ascii")
         headers = {"Authorization": "Basic " + token}
-    else:
+    elif os.environ.get("WAKA_ALLOW_PUBLIC") == "1":
         url = f"{API_BASE}/users/{PUBLIC_USER_ID}/stats/{TIME_RANGE}"
         headers = {"User-Agent": "waka-stats/1.0"}
+    else:
+        raise RuntimeError(
+            "缺少 WAKATIME_API_KEY（CI 中禁止静默降级公开 API；本地预览请设 WAKA_ALLOW_PUBLIC=1）"
+        )
     req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=30) as resp:
         payload = json.loads(resp.read().decode("utf-8"))
@@ -75,7 +86,7 @@ def fetch_stats():
     return payload["data"]
 
 
-def fmt_hms(sec):
+def fmt_hms(sec: Any) -> str:
     """紧凑时长：6h 12m / 42m / 10s（用于代码块内，保持对齐）。"""
     sec = int(sec or 0)
     h, rem = divmod(sec, 3600)
@@ -89,7 +100,7 @@ def fmt_hms(sec):
     return f"{s}s"
 
 
-def fmt_cn(sec):
+def fmt_cn(sec: Any) -> str:
     """中文时长：30 小时 52 分 / 42 分钟 / 10 秒（用于总览行）。"""
     sec = int(sec or 0)
     h, rem = divmod(sec, 3600)
@@ -105,51 +116,50 @@ def fmt_cn(sec):
     return f"{s} 秒"
 
 
-def fmt_num(n):
+def fmt_num(n: Any) -> str:
     """整数千分位：5211 → 5,211"""
     return f"{int(n or 0):,}"
 
 
-def disp_width(s):
+def disp_width(s: str) -> int:
     """显示宽度：中文/全角字符算 2 列，其余算 1 列（等宽字体下对齐）。"""
     return sum(2 if ord(ch) > 127 else 1 for ch in s)
 
 
-def pad(s, width):
+def pad(s: str, width: int) -> str:
     """按显示宽度在右侧补空格到 width 列。"""
     return s + " " * max(0, width - disp_width(s))
 
 
-def pad_left(s, width):
+def pad_left(s: str, width: int) -> str:
     """按显示宽度在左侧补空格（右对齐）到 width 列。"""
     return " " * max(0, width - disp_width(s)) + s
 
 
-def bar(fraction, width=BAR_WIDTH):
-    """进度条：fraction 取 0~1，█ 填充 / ░ 空白。"""
+def bar(fraction: float, width: int = BAR_WIDTH) -> str:
+    """进度条：fraction 取 0~1，█ 填充 / ░ 空白。条长 = 占比，与百分比刻度一致。"""
     fraction = max(0.0, min(1.0, fraction))
     filled = round(fraction * width)
     return BAR_FULL * filled + BAR_EMPTY * (width - filled)
 
 
-def render_section(title, items, top_n):
-    """通用小节：名称 + 时长 + 进度条 + 百分比。基准 = 最大项。
+def render_section(title: str, items: Any, top_n: int) -> str:
+    """通用小节：名称 + 时长 + 进度条 + 百分比。条长 = percent/100（与百分比一致）。
     条对齐列 = 14(label 右对齐) + 12(value 右对齐) + 2 空格。"""
     if not items:
         return ""
     items = sorted(items, key=lambda x: x.get("total_seconds") or 0, reverse=True)[:top_n]
-    peak = max((it.get("total_seconds") or 0) for it in items) or 1
     body = "\n".join(
         f"{pad_left(it.get('name', '?').strip()[:16], 14)}"
         f"{pad_left(fmt_hms(it.get('total_seconds') or 0), 12)}  "
-        f"{bar((it.get('total_seconds') or 0) / peak)}  "
+        f"{bar((it.get('percent') or 0) / 100)}  "
         f"{(it.get('percent') or 0):>5.1f}%"
         for it in items
     )
     return f"#### {title}\n\n```txt\n{body}\n```"
 
 
-def render_best_day(data):
+def render_best_day(data: dict[str, Any]) -> str:
     """最佳编码日。"""
     best = data.get("best_day")
     if not best or not best.get("date"):
@@ -164,7 +174,7 @@ def render_best_day(data):
     return f"#### 🏆 最佳编码日\n\n```txt\n{body}\n```"
 
 
-def render_ai(data):
+def render_ai(data: dict[str, Any]) -> str:
     """AI 编码详情：AI/人类代码行比例 + 会话 + 提示词事件 + 主要模型。"""
     ai_add = data.get("ai_additions") or 0
     hu_add = data.get("human_additions") or 0
@@ -196,23 +206,22 @@ def render_ai(data):
     if lines:
         parts.append("#### ✨ AI 编码详情\n\n```txt\n" + "\n".join(lines) + "\n```")
 
-    # 主要 AI 模型（按生成行数）
+    # 主要 AI 模型（按生成行数），条长 = 行数占比
     mb = data.get("ai_model_line_changes") or {}
     models = sorted(mb.items(), key=lambda kv: kv[1], reverse=True)[:5]
     if models and max(v for _, v in models) > 0:
-        peak = max(v for _, v in models)
         total = sum(v for _, v in models) or 1
         body = "\n".join(
             f"{pad_left(MODEL_NAMES.get(name, name)[:12], 14)}"
             f"{pad_left(f'{fmt_num(ln)} 行', 12)}  "
-            f"{bar(ln / peak)}  {ln / total * 100:>5.1f}%"
+            f"{bar(ln / total)}  {ln / total * 100:>5.1f}%"
             for name, ln in models
         )
         parts.append("#### 🧠 主要 AI 模型\n\n```txt\n" + body + "\n```")
     return "\n\n".join(parts)
 
 
-def build_block(data):
+def build_block(data: dict[str, Any]) -> str:
     """组装 devstats 区块的 markdown 内容。"""
     total = data.get("total_seconds") or 0
     total_all = data.get("total_seconds_including_other_language") or 0
@@ -239,7 +248,7 @@ def build_block(data):
     return "\n".join(lines)
 
 
-def main():
+def main() -> int:
     try:
         data = fetch_stats()
     except Exception as e:
@@ -250,7 +259,11 @@ def main():
         log(f"[waka_stats] API 返回异常 status={data.get('status')!r}")
         return 1
 
-    content = build_block(data)
+    try:
+        content = build_block(data)
+    except Exception as e:
+        log(f"[waka_stats] 生成统计区块失败: {e}")
+        return 1
 
     if not os.path.exists(README_PATH):
         log(f"[waka_stats] 找不到 README: {README_PATH}")

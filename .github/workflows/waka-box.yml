@@ -1,6 +1,6 @@
 # 每天自动更新 README 中的 wakatime 编码统计
 # 1. waka-readme：语言统计（<!--START_SECTION:waka-->）
-# 2. 自定义脚本：详细统计（<!--START_SECTION:devstats-->），含 AI 编码详情/编辑器/OS/项目
+# 2. 自定义脚本：详细统计（<!--START_SECTION:devstats-->），含 AI 编码详情/编辑器/OS/活动类别
 name: Waka Readme
 
 on:
@@ -27,13 +27,13 @@ jobs:
           SHOW_MASKED_TIME: true           # 显示含未分类的总时长
           SHOW_TIME: true                  # 显示各语言时长
           LANG_COUNT: 15                   # 展示 15 种语言（默认 5）
-          IGNORED_LANGUAGES: "RPMSpec Git Config INI"  # 过滤非编码噪音语言
+          IGNORED_LANGUAGES: "RPMSpec INI"  # 过滤噪音语言（含空格的语言名无法用空格分隔过滤，故不含 Git Config）
 
       # 第二步：拉取 waka-readme 提交后的最新代码
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 第三步：生成详细统计区块（AI 编码/编辑器/OS/类别/项目）
+      # 第三步：生成详细统计区块（AI 编码/编辑器/OS/活动类别）
       - name: Update detailed dev stats
         env:
           WAKATIME_API_KEY: ${{ secrets.WAKATIME_API_KEY }}
@@ -47,6 +47,8 @@ jobs:
           git add README.md
           if ! git diff --cached --quiet; then
             git commit -m "chore: update wakatime detailed stats"
+            # 若 waka-readme 本次运行也提交过，先 rebase 到最新 main 再 push，避免 non-fast-forward 被拒
+            git pull --rebase origin main
             git push
           else
             echo "README 无变化，跳过提交"

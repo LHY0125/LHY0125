@@ -1,3 +1,5 @@
 .DS_Store
 .vscode/
 .playwright-mcp/
+
+__pycache__/
