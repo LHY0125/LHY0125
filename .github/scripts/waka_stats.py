@@ -22,6 +22,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.request
 from datetime import date
 from types import MappingProxyType
@@ -251,14 +252,25 @@ def build_block(data: dict[str, Any]) -> str:
 
 
 def main() -> int:
-    try:
-        data = fetch_stats()
-    except Exception as e:
-        log(f"[waka_stats] 拉取 wakatime 数据失败: {e}")
-        return 1
-
-    if data.get("status") not in (None, "ok"):
-        log(f"[waka_stats] API 返回异常 status={data.get('status')!r}")
+    # wakatime 在账号活跃重算统计时会临时返回 status='updating'，做有限重试后改用当前数据
+    data = None
+    for attempt in range(1, 4):
+        try:
+            data = fetch_stats()
+        except Exception as e:
+            log(f"[waka_stats] 拉取 wakatime 数据失败: {e}")
+            return 1
+        status = data.get("status")
+        if status in (None, "ok"):
+            break
+        if status == "updating":
+            if attempt < 3:
+                log(f"[waka_stats] wakatime 统计正在更新，第 {attempt}/3 次重试 ...")
+                time.sleep(5)
+                continue
+            log("[waka_stats] 重试后仍为 updating，改用当前数据")
+            break
+        log(f"[waka_stats] API 返回异常 status={status!r}")
         return 1
 
     try:
